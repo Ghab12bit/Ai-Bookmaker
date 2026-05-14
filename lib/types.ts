@@ -1,10 +1,26 @@
+export type BookTone =
+  | "warm_cozy"
+  | "dry_witty"
+  | "literary_quiet"
+  | "light_comedic"
+  | "suspenseful"
+  | "nostalgic_wistful";
+
+export type ReadingLevel = "easy" | "standard" | "elevated";
+
 export type UserInput = {
+  // Existing fields:
   detectiveName: string;
   setting: string;
   hobby: string;
   premise: string;
   numChapters: number;
   wordsPerChapter: number;
+  // v2 fields:
+  tone: BookTone;
+  readingLevel: ReadingLevel;
+  geolocation?: string;
+  bookContext?: string;
 };
 
 export type Character = {

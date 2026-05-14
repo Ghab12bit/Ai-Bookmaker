@@ -1,4 +1,4 @@
-import { BookBible, ChapterOutline, ChapterSummary, UserInput } from "./types";
+import { BookBible, BookTone, ChapterOutline, ChapterSummary, ReadingLevel, UserInput } from "./types";
 
 export const BOOK_BIBLE_SYSTEM_PROMPT = `You are a master cozy mystery novelist who plans books like a chess grandmaster — every clue, every red herring, every character beat placed deliberately.
 
@@ -98,8 +98,58 @@ ROTATE THEM. No two consecutive chapters should use the same opening or ending. 
 
 Respond ONLY with valid JSON matching the BookBible schema. No prose preamble, no markdown fences, no explanation. Just the JSON object.`;
 
+const toneInstructions: Record<BookTone, string> = {
+  warm_cozy: "Tone: warm, observational, gentle. Like a kind neighbor telling you a story over tea. Avoid drama and melodrama.",
+  dry_witty: "Tone: dry, slightly arch British wit. Observations have a knowing edge. Characters say less than they mean. Think Agatha Raisin meets Richard Osman.",
+  literary_quiet: "Tone: literary and contemplative. Slower pacing. Inner thoughts matter. Sentences can breathe. Think Louise Penny — the mystery serves the character study.",
+  light_comedic: "Tone: light and funny. More dialogue than description. Characters bicker. The detective has a sidekick or rival who creates comic friction. Think Janet Evanovich.",
+  suspenseful: "Tone: cozy framework but with genuine tension. Shorter sentences during reveals. The detective is in real (but not graphic) danger. Think cozy that leans toward thriller.",
+  nostalgic_wistful: "Tone: memoir-tinged. The narrator (or detective) is looking back on events with a touch of melancholy. Time is a character. Old places and old grudges matter.",
+};
+
+const readingLevelInstructions: Record<ReadingLevel, string> = {
+  easy: "Reading level: easy. Short sentences (8-15 words average). Common vocabulary. Fast pace. Suitable for Kindle Unlimited binge readers who want immersion over literary effect.",
+  standard: "Reading level: standard mainstream cozy. Mix of short and medium sentences (12-22 words average). Common but specific vocabulary. Moderate pace.",
+  elevated: "Reading level: elevated. Sentences can be longer and more varied (15-30+ words when called for). Richer vocabulary acceptable. More interiority and reflection. Suitable for book-club cozy readers.",
+};
+
+function buildContextPreamble(params: {
+  tone: BookTone;
+  readingLevel: ReadingLevel;
+  geolocation?: string;
+  bookContext?: string;
+}): string {
+  const { tone, readingLevel, geolocation, bookContext } = params;
+  return `# Tone and style requirements
+
+${toneInstructions[tone]}
+
+${readingLevelInstructions[readingLevel]}
+
+${geolocation ? `# Real-world anchor
+
+This book is set in or near: ${geolocation}
+
+Use real, specific details from this region — local geography, weather patterns, regional food, local industry, regional dialect or speech rhythms. AVOID generic "small town" descriptions. Anchor the world in this specific place.
+
+` : ""}${bookContext ? `# Additional context from the author (HONOR THIS)
+
+The author has provided this specific context. Treat it as immutable truth. Use these details naturally:
+
+${bookContext}
+
+` : ""}`;
+}
+
 export function buildBookBibleUserPrompt(input: UserInput): string {
-  return `Generate a complete cozy mystery book bible for this premise:
+  const preamble = buildContextPreamble({
+    tone: input.tone,
+    readingLevel: input.readingLevel,
+    geolocation: input.geolocation,
+    bookContext: input.bookContext,
+  });
+
+  return `${preamble}# Premise
 
 Detective: ${input.detectiveName}
 Setting: ${input.setting}
@@ -222,8 +272,21 @@ export function buildChapterUserPrompt(params: {
   previousChapterEnding: string;
   overusedVocabulary: string[];
   targetWordCount: number;
+  tone?: BookTone;
+  readingLevel?: ReadingLevel;
+  geolocation?: string;
+  bookContext?: string;
 }): string {
-  return `# Book Bible (immutable truth):
+  const preamble = params.tone && params.readingLevel
+    ? buildContextPreamble({
+        tone: params.tone,
+        readingLevel: params.readingLevel,
+        geolocation: params.geolocation,
+        bookContext: params.bookContext,
+      })
+    : "";
+
+  return `${preamble}# Book Bible (immutable truth):
 ${JSON.stringify(params.bible, null, 2)}
 
 # Current chapter to write:

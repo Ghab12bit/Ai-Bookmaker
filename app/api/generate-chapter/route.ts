@@ -4,7 +4,7 @@ import {
   CHAPTER_GENERATOR_SYSTEM_PROMPT,
   buildChapterUserPrompt,
 } from "@/lib/prompts";
-import { BookBible, ChapterSummary } from "@/lib/types";
+import { BookBible, BookTone, ChapterSummary, ReadingLevel } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,10 +13,22 @@ export async function POST(req: NextRequest) {
       chapterNumber: number;
       previousSummaries: ChapterSummary[];
       previousChapterEnding: string;
+      tone?: BookTone;
+      readingLevel?: ReadingLevel;
+      geolocation?: string;
+      bookContext?: string;
     } = await req.json();
 
-    const { bible, chapterNumber, previousSummaries, previousChapterEnding } =
-      body;
+    const {
+      bible,
+      chapterNumber,
+      previousSummaries,
+      previousChapterEnding,
+      tone,
+      readingLevel,
+      geolocation,
+      bookContext,
+    } = body;
 
     const chapterOutline = bible.chapterOutlines.find(
       (c) => c.chapterNumber === chapterNumber
@@ -52,6 +64,10 @@ export async function POST(req: NextRequest) {
           (bible as BookBible & { wordsPerChapter?: number })
             .wordsPerChapter ?? 2800
         ),
+        tone,
+        readingLevel,
+        geolocation,
+        bookContext,
       }),
       responseFormat: "text",
       maxTokens: 6000,

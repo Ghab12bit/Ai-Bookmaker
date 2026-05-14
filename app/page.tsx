@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookBible, GeneratedChapter, ChapterSummary, UserInput } from "@/lib/types";
+import { BookBible, BookTone, GeneratedChapter, ChapterSummary, ReadingLevel, UserInput } from "@/lib/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +65,16 @@ export default function Home() {
     premise: "",
     numChapters: 10,
     wordsPerChapter: 2800,
+    tone: "warm_cozy",
+    readingLevel: "standard",
+    geolocation: "",
+    bookContext: "",
   });
+
+  const [tone, setTone] = useState<BookTone>("warm_cozy");
+  const [readingLevel, setReadingLevel] = useState<ReadingLevel>("standard");
+  const [geolocation, setGeolocation] = useState<string>("");
+  const [bookContext, setBookContext] = useState<string>("");
 
   const [generating, setGenerating] = useState(false);
   const [steps, setSteps] = useState<Step[]>([]);
@@ -116,7 +125,7 @@ export default function Home() {
       const bibleRes = await fetch("/api/generate-bible", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, tone, readingLevel, geolocation, bookContext }),
       });
       const bibleData = await bibleRes.json();
       if (!bibleRes.ok || bibleData.error)
@@ -140,6 +149,10 @@ export default function Home() {
             chapterNumber: i,
             previousSummaries: summaries,
             previousChapterEnding,
+            tone,
+            readingLevel,
+            geolocation,
+            bookContext,
           }),
         });
         const chapterData = await chapterRes.json();
@@ -288,6 +301,78 @@ export default function Home() {
               />
             </div>
 
+            {/* Tone selector */}
+            <div>
+              <label className="block text-sm font-medium text-amber-900 mb-1">
+                Tone
+              </label>
+              <select
+                value={tone}
+                onChange={(e) => setTone(e.target.value as BookTone)}
+                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                <option value="warm_cozy">Warm &amp; Cozy (default) — gentle, observational</option>
+                <option value="dry_witty">Dry &amp; Witty — British-style arch humor</option>
+                <option value="literary_quiet">Literary &amp; Quiet — slower, contemplative</option>
+                <option value="light_comedic">Light &amp; Comedic — banter-heavy, funny</option>
+                <option value="suspenseful">Suspenseful — cozy with edge</option>
+                <option value="nostalgic_wistful">Nostalgic &amp; Wistful — memoir-tinged</option>
+              </select>
+              <p className="text-xs text-amber-600 mt-1">
+                How the book should feel. Shapes prose style across all chapters.
+              </p>
+            </div>
+
+            {/* Reading level selector */}
+            <div>
+              <label className="block text-sm font-medium text-amber-900 mb-1">
+                Reading level
+              </label>
+              <select
+                value={readingLevel}
+                onChange={(e) => setReadingLevel(e.target.value as ReadingLevel)}
+                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              >
+                <option value="easy">Easy — short sentences, fast pace, KU binge reader</option>
+                <option value="standard">Standard — mainstream cozy (default)</option>
+                <option value="elevated">Elevated — richer vocabulary, more interiority</option>
+              </select>
+            </div>
+
+            {/* Geolocation input */}
+            <div>
+              <label className="block text-sm font-medium text-amber-900 mb-1">
+                Real-world location (optional but recommended)
+              </label>
+              <input
+                type="text"
+                value={geolocation}
+                onChange={(e) => setGeolocation(e.target.value)}
+                placeholder='e.g. "Camden, Maine" or "Asheville, North Carolina"'
+                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <p className="text-xs text-amber-600 mt-1">
+                A real place anchors prose in specific details. Generic "small town" → generic prose.
+              </p>
+            </div>
+
+            {/* Book context textarea */}
+            <div>
+              <label className="block text-sm font-medium text-amber-900 mb-1">
+                Additional context (optional)
+              </label>
+              <textarea
+                value={bookContext}
+                onChange={(e) => setBookContext(e.target.value)}
+                rows={5}
+                placeholder='Any specific details you want the AI to honor. e.g. "Detective is a recovering alcoholic. Her late husband was a state trooper. Town has tension with summer tourists. Mrs. Hollis runs the diner and knows everyone."'
+                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+              />
+              <p className="text-xs text-amber-600 mt-1">
+                Free-form. Character backgrounds, plot constraints, local color — goes into every chapter prompt.
+              </p>
+            </div>
+
             {errorMsg && (
               <p className="text-red-600 text-sm bg-red-50 rounded-lg p-3">
                 {errorMsg}
@@ -371,6 +456,10 @@ export default function Home() {
                 onClick={() => {
                   setDownloadUrl(null);
                   setSteps([]);
+                  setTone("warm_cozy");
+                  setReadingLevel("standard");
+                  setGeolocation("");
+                  setBookContext("");
                   setForm({
                     detectiveName: "",
                     setting: "",
@@ -378,6 +467,10 @@ export default function Home() {
                     premise: "",
                     numChapters: 10,
                     wordsPerChapter: 2800,
+                    tone: "warm_cozy",
+                    readingLevel: "standard",
+                    geolocation: "",
+                    bookContext: "",
                   });
                 }}
                 className="text-amber-700 underline text-sm mt-2"
