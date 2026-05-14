@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookBible, BookTone, GeneratedChapter, ChapterSummary, ReadingLevel, UserInput } from "@/lib/types";
+import { BookBible, BookTone, GeneratedChapter, ChapterSummary, ReadingLevel } from "@/lib/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,6 +11,23 @@ type Step = {
   key: string;
   label: string;
   status: StepStatus;
+};
+
+type Proposal = {
+  suggestedTitle: string;
+  detectiveName: string;
+  detectiveAge: number;
+  detectiveBackstory: string;
+  setting: string;
+  geolocation: string;
+  hobby: string;
+  premise: string;
+  tone: BookTone;
+  readingLevel: ReadingLevel;
+  bookContext: string;
+  recommendedChapters: number;
+  recommendedWordsPerChapter: number;
+  rationale: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -40,12 +57,12 @@ function StepRow({ step }: { step: Step }) {
 
   const color =
     step.status === "done"
-      ? "text-green-600"
+      ? "text-green-500"
       : step.status === "error"
       ? "text-red-500"
       : step.status === "active"
-      ? "text-amber-600 animate-pulse"
-      : "text-gray-400";
+      ? "text-amber-500 animate-pulse"
+      : "text-neutral-600";
 
   return (
     <div className={`flex items-center gap-2 py-1 text-sm ${color}`}>
@@ -58,31 +75,24 @@ function StepRow({ step }: { step: Step }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [form, setForm] = useState<UserInput>({
-    detectiveName: "",
-    setting: "",
-    hobby: "",
-    premise: "",
-    numChapters: 10,
-    wordsPerChapter: 2800,
-    tone: "warm_cozy",
-    readingLevel: "standard",
-    geolocation: "",
-    bookContext: "",
-  });
+  // === FLOW MODE ===
+  const [mode, setMode] = useState<"idea" | "proposal" | "generating" | "complete">("idea");
 
-  const [tone, setTone] = useState<BookTone>("warm_cozy");
-  const [readingLevel, setReadingLevel] = useState<ReadingLevel>("standard");
-  const [geolocation, setGeolocation] = useState<string>("");
-  const [bookContext, setBookContext] = useState<string>("");
+  // === IDEA MODE ===
+  const [vagueIdea, setVagueIdea] = useState("");
+  const [isProposing, setIsProposing] = useState(false);
 
-  const [generating, setGenerating] = useState(false);
+  // === PROPOSAL MODE ===
+  const [proposal, setProposal] = useState<Proposal | null>(null);
+
+  // === GENERATION STATE (preserved from v1) ===
   const [steps, setSteps] = useState<Step[]>([]);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadName, setDownloadName] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<number | null>(null);
   const [completedChapters, setCompletedChapters] = useState(0);
+  const [numChaptersForDisplay, setNumChaptersForDisplay] = useState(10);
 
   // ── Step helpers ─────────────────────────────────────────────────────────────
 
@@ -110,13 +120,24 @@ export default function Home() {
 
   // ── Orchestration ─────────────────────────────────────────────────────────────
 
-  async function generate() {
+  async function generate(input: {
+    detectiveName: string;
+    setting: string;
+    hobby: string;
+    premise: string;
+    numChapters: number;
+    wordsPerChapter: number;
+    tone: BookTone;
+    readingLevel: ReadingLevel;
+    geolocation?: string;
+    bookContext?: string;
+  }) {
     setErrorMsg(null);
     setDownloadUrl(null);
     setCompletedChapters(0);
-    const initialSteps = buildInitialSteps(form.numChapters);
+    setNumChaptersForDisplay(input.numChapters);
+    const initialSteps = buildInitialSteps(input.numChapters);
     setSteps(initialSteps);
-    setGenerating(true);
     setStartTime(Date.now());
 
     try {
@@ -125,7 +146,7 @@ export default function Home() {
       const bibleRes = await fetch("/api/generate-bible", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, tone, readingLevel, geolocation, bookContext }),
+        body: JSON.stringify(input),
       });
       const bibleData = await bibleRes.json();
       if (!bibleRes.ok || bibleData.error)
@@ -138,7 +159,7 @@ export default function Home() {
       const summaries: ChapterSummary[] = [];
       let previousChapterEnding = "";
 
-      for (let i = 1; i <= form.numChapters; i++) {
+      for (let i = 1; i <= input.numChapters; i++) {
         setStep(`chapter-${i}`, "active");
 
         const chapterRes = await fetch("/api/generate-chapter", {
@@ -149,10 +170,10 @@ export default function Home() {
             chapterNumber: i,
             previousSummaries: summaries,
             previousChapterEnding,
-            tone,
-            readingLevel,
-            geolocation,
-            bookContext,
+            tone: input.tone,
+            readingLevel: input.readingLevel,
+            geolocation: input.geolocation,
+            bookContext: input.bookContext,
           }),
         });
         const chapterData = await chapterRes.json();
@@ -170,9 +191,7 @@ export default function Home() {
         });
         const summaryData = await summaryRes.json();
         if (!summaryRes.ok || summaryData.error)
-          throw new Error(
-            summaryData.error || `Summary for chapter ${i} failed`
-          );
+          throw new Error(summaryData.error || `Summary for chapter ${i} failed`);
 
         summaries.push(summaryData.chapterSummary);
         setStep(`chapter-${i}`, "done");
@@ -188,8 +207,8 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             title: bible.title,
-            setting: form.setting,
-            detectiveHobby: form.hobby,
+            setting: input.setting,
+            detectiveHobby: input.hobby,
           }),
         });
         const coverData = await coverRes.json();
@@ -216,6 +235,7 @@ export default function Home() {
       setDownloadUrl(url);
       setDownloadName(`${safeTitle}.docx`);
       setStep("docx", "done");
+      setMode("complete");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setErrorMsg(msg);
@@ -224,352 +244,369 @@ export default function Home() {
           s.status === "active" ? { ...s, status: "error" } : s
         )
       );
-    } finally {
-      setGenerating(false);
     }
   }
 
   // ── Time estimate ─────────────────────────────────────────────────────────────
 
   function timeRemainingLabel(): string | null {
-    if (!generating || !startTime || completedChapters === 0) return null;
+    if (mode !== "generating" || !startTime || completedChapters === 0) return null;
     const elapsed = (Date.now() - startTime) / 1000;
     const perChapter = elapsed / completedChapters;
-    const remaining = (form.numChapters - completedChapters) * perChapter;
+    const remaining = (numChaptersForDisplay - completedChapters) * perChapter;
     return formatTimeRemaining(Math.round(remaining));
+  }
+
+  // ── Proposal handlers ──────────────────────────────────────────────────────
+
+  async function handleProposeSetup() {
+    setIsProposing(true);
+    try {
+      const res = await fetch("/api/suggest-setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vagueIdea }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setProposal(data);
+      setMode("proposal");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Something went wrong";
+      alert(msg);
+    } finally {
+      setIsProposing(false);
+    }
+  }
+
+  function updateProposal(field: keyof Proposal, value: string | number) {
+    if (!proposal) return;
+    setProposal({ ...proposal, [field]: value });
+  }
+
+  async function handleGenerateBook() {
+    if (!proposal) return;
+    setMode("generating");
+    await generate({
+      detectiveName: proposal.detectiveName,
+      setting: proposal.setting,
+      hobby: proposal.hobby,
+      premise: `${proposal.premise} ${proposal.detectiveBackstory}`.trim(),
+      numChapters: proposal.recommendedChapters,
+      wordsPerChapter: proposal.recommendedWordsPerChapter,
+      tone: proposal.tone,
+      readingLevel: proposal.readingLevel,
+      geolocation: proposal.geolocation,
+      bookContext: proposal.bookContext,
+    });
   }
 
   const timeLabel = timeRemainingLabel();
 
+  const exampleIdeas = [
+    "A clock restorer in a small Ohio town investigates a death at an estate sale",
+    "A retired park ranger in Appalachia finds a body during a heritage festival",
+    "A beekeeping widow in Vermont solves a murder at the county fair",
+  ];
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  return (
-    <main className="min-h-screen bg-amber-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-amber-900 tracking-tight">
-            Cozy Mystery Generator
-          </h1>
-          <p className="mt-2 text-amber-700 text-lg">
-            Fill in the details and we&apos;ll write your 25,000-word novella.
-          </p>
-        </div>
-
-        {/* Form */}
-        {!generating && !downloadUrl && (
-          <div className="bg-white rounded-2xl shadow-md p-8 space-y-6">
-            <Field
-              label="Detective's first name"
-              hint='e.g. "Eleanor"'
-              value={form.detectiveName}
-              onChange={(v) => setForm({ ...form, detectiveName: v })}
-            />
-            <Field
-              label="Setting"
-              hint='e.g. "Willow Creek, a coastal town in Maine"'
-              value={form.setting}
-              onChange={(v) => setForm({ ...form, setting: v })}
-            />
-            <Field
-              label="Detective's quirky hobby or job"
-              hint='e.g. "owns a bookshop, lives with a Siamese cat named Watson"'
-              value={form.hobby}
-              onChange={(v) => setForm({ ...form, hobby: v })}
-            />
-            <TextareaField
-              label="Premise"
-              hint='e.g. "When the town&apos;s beloved baker is found dead at the annual pie contest..."'
-              value={form.premise}
-              onChange={(v) => setForm({ ...form, premise: v })}
-            />
-            <div className="grid grid-cols-2 gap-4">
-              <NumberField
-                label="Number of chapters"
-                value={form.numChapters}
-                min={6}
-                max={15}
-                onChange={(v) => setForm({ ...form, numChapters: v })}
-              />
-              <NumberField
-                label="Words per chapter"
-                value={form.wordsPerChapter}
-                min={1500}
-                max={4000}
-                step={100}
-                onChange={(v) => setForm({ ...form, wordsPerChapter: v })}
-              />
+  // === MODE: IDEA ===
+  if (mode === "idea") {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-neutral-100 px-6 py-16">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-full px-4 py-1.5 text-xs text-amber-500 font-medium mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+              AI-POWERED &bull; Cozy Mysteries
             </div>
-
-            {/* Tone selector */}
-            <div>
-              <label className="block text-sm font-medium text-amber-900 mb-1">
-                Tone
-              </label>
-              <select
-                value={tone}
-                onChange={(e) => setTone(e.target.value as BookTone)}
-                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              >
-                <option value="warm_cozy">Warm &amp; Cozy (default) — gentle, observational</option>
-                <option value="dry_witty">Dry &amp; Witty — British-style arch humor</option>
-                <option value="literary_quiet">Literary &amp; Quiet — slower, contemplative</option>
-                <option value="light_comedic">Light &amp; Comedic — banter-heavy, funny</option>
-                <option value="suspenseful">Suspenseful — cozy with edge</option>
-                <option value="nostalgic_wistful">Nostalgic &amp; Wistful — memoir-tinged</option>
-              </select>
-              <p className="text-xs text-amber-600 mt-1">
-                How the book should feel. Shapes prose style across all chapters.
-              </p>
-            </div>
-
-            {/* Reading level selector */}
-            <div>
-              <label className="block text-sm font-medium text-amber-900 mb-1">
-                Reading level
-              </label>
-              <select
-                value={readingLevel}
-                onChange={(e) => setReadingLevel(e.target.value as ReadingLevel)}
-                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              >
-                <option value="easy">Easy — short sentences, fast pace, KU binge reader</option>
-                <option value="standard">Standard — mainstream cozy (default)</option>
-                <option value="elevated">Elevated — richer vocabulary, more interiority</option>
-              </select>
-            </div>
-
-            {/* Geolocation input */}
-            <div>
-              <label className="block text-sm font-medium text-amber-900 mb-1">
-                Real-world location (optional but recommended)
-              </label>
-              <input
-                type="text"
-                value={geolocation}
-                onChange={(e) => setGeolocation(e.target.value)}
-                placeholder='e.g. "Camden, Maine" or "Asheville, North Carolina"'
-                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-              <p className="text-xs text-amber-600 mt-1">
-                A real place anchors prose in specific details. Generic "small town" → generic prose.
-              </p>
-            </div>
-
-            {/* Book context textarea */}
-            <div>
-              <label className="block text-sm font-medium text-amber-900 mb-1">
-                Additional context (optional)
-              </label>
-              <textarea
-                value={bookContext}
-                onChange={(e) => setBookContext(e.target.value)}
-                rows={5}
-                placeholder='Any specific details you want the AI to honor. e.g. "Detective is a recovering alcoholic. Her late husband was a state trooper. Town has tension with summer tourists. Mrs. Hollis runs the diner and knows everyone."'
-                className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-              />
-              <p className="text-xs text-amber-600 mt-1">
-                Free-form. Character backgrounds, plot constraints, local color — goes into every chapter prompt.
-              </p>
-            </div>
-
-            {errorMsg && (
-              <p className="text-red-600 text-sm bg-red-50 rounded-lg p-3">
-                {errorMsg}
-              </p>
-            )}
-
-            <button
-              onClick={generate}
-              disabled={
-                !form.detectiveName ||
-                !form.setting ||
-                !form.hobby ||
-                !form.premise
-              }
-              className="w-full bg-amber-700 hover:bg-amber-800 disabled:bg-amber-300 text-white font-semibold py-3 px-6 rounded-xl text-lg transition-colors"
-            >
-              Generate my cozy mystery
-            </button>
-            <p className="text-center text-amber-600 text-sm">
-              Estimated time:{" "}
-              {Math.round((form.numChapters * 30) / 60)}–
-              {Math.round((form.numChapters * 45) / 60)} minutes
+            <h1 className="text-5xl font-bold text-neutral-100 tracking-tight mb-4">
+              AI Bookmaker
+            </h1>
+            <p className="text-neutral-400 text-lg max-w-lg mx-auto">
+              Describe your idea and I&apos;ll suggest a complete setup. You review, tweak, then generate your full novella.
             </p>
           </div>
-        )}
 
-        {/* Progress */}
-        {(generating || (steps.length > 0 && !downloadUrl)) && (
-          <div className="bg-white rounded-2xl shadow-md p-8 space-y-2">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-amber-900">
-                Writing your novel…
-              </h2>
-              {timeLabel && (
-                <span className="text-sm text-amber-600">{timeLabel}</span>
-              )}
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-neutral-300">Your book idea</label>
+            <textarea
+              value={vagueIdea}
+              onChange={(e) => setVagueIdea(e.target.value)}
+              rows={4}
+              placeholder="Even a rough sentence works. What's the vibe? Where's it set? Who's the detective?"
+              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-4 text-neutral-100 placeholder-neutral-600 focus:outline-none focus:border-amber-700 resize-none text-sm"
+            />
+
+            <div>
+              <p className="text-xs text-neutral-500 mb-2">Or try an example:</p>
+              <div className="flex flex-wrap gap-2">
+                {exampleIdeas.map((idea) => (
+                  <button
+                    key={idea}
+                    onClick={() => setVagueIdea(idea)}
+                    className="text-xs px-3 py-2 rounded-full bg-neutral-900 border border-neutral-800 hover:border-neutral-600 text-neutral-400 hover:text-neutral-200 transition"
+                  >
+                    {idea}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            <button
+              onClick={handleProposeSetup}
+              disabled={!vagueIdea.trim() || isProposing}
+              className="w-full bg-amber-800 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium py-3 rounded-xl transition text-sm"
+            >
+              {isProposing ? "Thinking..." : "Suggest a setup →"}
+            </button>
+
+            <p className="text-xs text-neutral-600 text-center">
+              Takes about 5 seconds. You can regenerate as many times as you want.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // === MODE: PROPOSAL ===
+  if (mode === "proposal" && proposal) {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-neutral-100 px-6 py-12">
+        <div className="max-w-2xl mx-auto">
+          <button
+            onClick={() => setMode("idea")}
+            className="text-xs text-neutral-500 hover:text-neutral-300 mb-6 transition"
+          >
+            ← back to idea
+          </button>
+
+          <h2 className="text-2xl font-bold mb-1">Here&apos;s a setup for your book</h2>
+          <p className="text-neutral-400 text-sm mb-8 italic">{proposal.rationale}</p>
+
+          <div className="space-y-4 bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+
+            <ProposalField label="Title" value={proposal.suggestedTitle} onChange={(v) => updateProposal("suggestedTitle", v)} />
+
+            <div className="grid grid-cols-2 gap-4">
+              <ProposalField label="Detective name" value={proposal.detectiveName} onChange={(v) => updateProposal("detectiveName", v)} />
+              <ProposalField label="Age" type="number" value={String(proposal.detectiveAge)} onChange={(v) => updateProposal("detectiveAge", Number(v))} />
+            </div>
+
+            <ProposalField label="Backstory" value={proposal.detectiveBackstory} onChange={(v) => updateProposal("detectiveBackstory", v)} />
+            <ProposalField label="Setting (descriptive)" value={proposal.setting} onChange={(v) => updateProposal("setting", v)} />
+            <ProposalField label="Real-world location (anchors specificity)" value={proposal.geolocation} onChange={(v) => updateProposal("geolocation", v)} />
+            <ProposalField label="Hobby / job" value={proposal.hobby} onChange={(v) => updateProposal("hobby", v)} />
+
+            <ProposalTextarea label="Premise" value={proposal.premise} onChange={(v) => updateProposal("premise", v)} rows={4} />
+            <ProposalTextarea label="Additional context" value={proposal.bookContext} onChange={(v) => updateProposal("bookContext", v)} rows={4} />
+
+            <div className="grid grid-cols-2 gap-4">
+              <ProposalSelect
+                label="Tone"
+                value={proposal.tone}
+                onChange={(v) => updateProposal("tone", v as BookTone)}
+                options={[
+                  { value: "warm_cozy", label: "Warm & Cozy" },
+                  { value: "dry_witty", label: "Dry & Witty" },
+                  { value: "literary_quiet", label: "Literary & Quiet" },
+                  { value: "light_comedic", label: "Light & Comedic" },
+                  { value: "suspenseful", label: "Suspenseful" },
+                  { value: "nostalgic_wistful", label: "Nostalgic & Wistful" },
+                ]}
+              />
+              <ProposalSelect
+                label="Reading level"
+                value={proposal.readingLevel}
+                onChange={(v) => updateProposal("readingLevel", v as ReadingLevel)}
+                options={[
+                  { value: "easy", label: "Easy (KU binge)" },
+                  { value: "standard", label: "Standard" },
+                  { value: "elevated", label: "Elevated (book club)" },
+                ]}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <ProposalField label="Chapters" type="number" value={String(proposal.recommendedChapters)} onChange={(v) => updateProposal("recommendedChapters", Number(v))} />
+              <ProposalField label="Words per chapter" type="number" value={String(proposal.recommendedWordsPerChapter)} onChange={(v) => updateProposal("recommendedWordsPerChapter", Number(v))} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            <button
+              onClick={handleProposeSetup}
+              disabled={isProposing}
+              className="px-4 py-3 rounded-xl border border-neutral-700 hover:border-neutral-500 text-neutral-300 text-sm transition disabled:opacity-40"
+            >
+              {isProposing ? "Regenerating..." : "↻ Regenerate setup"}
+            </button>
+            <button
+              onClick={handleGenerateBook}
+              className="px-4 py-3 rounded-xl bg-amber-800 hover:bg-amber-700 text-white font-medium text-sm transition"
+            >
+              Generate my book →
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // === MODE: GENERATING ===
+  if (mode === "generating") {
+    return (
+      <main className="min-h-screen bg-neutral-950 text-neutral-100 px-6 py-16">
+        <div className="max-w-2xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-neutral-900 border border-neutral-800 rounded-full px-4 py-1.5 text-xs text-amber-500 font-medium mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-pulse" />
+              Writing your novel…
+            </div>
+            <h1 className="text-4xl font-bold text-neutral-100 tracking-tight mb-3">AI Bookmaker</h1>
+            {timeLabel && <p className="text-neutral-500 text-sm">{timeLabel}</p>}
+          </div>
+
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 space-y-1">
             {steps.map((step) => (
               <StepRow key={step.key} step={step} />
             ))}
             {errorMsg && (
-              <div className="mt-4 space-y-3">
-                <p className="text-red-600 text-sm bg-red-50 rounded-lg p-3">
-                  {errorMsg}
-                </p>
+              <div className="mt-4 space-y-3 pt-3 border-t border-neutral-800">
+                <p className="text-red-400 text-sm">{errorMsg}</p>
                 <button
                   onClick={() => {
                     setSteps([]);
                     setErrorMsg(null);
-                    setGenerating(false);
+                    setMode("proposal");
                   }}
-                  className="text-amber-700 underline text-sm"
+                  className="text-amber-600 underline text-xs"
                 >
-                  Start over
+                  Go back and try again
                 </button>
               </div>
             )}
           </div>
-        )}
+        </div>
+      </main>
+    );
+  }
 
-        {/* Download */}
+  // === MODE: COMPLETE ===
+  return (
+    <main className="min-h-screen bg-neutral-950 text-neutral-100 px-6 py-16">
+      <div className="max-w-2xl mx-auto text-center">
+        <div className="text-6xl mb-6">📖</div>
+        <h2 className="text-3xl font-bold text-neutral-100 mb-3">Your novel is ready!</h2>
+        <p className="text-neutral-400 mb-8">
+          {numChaptersForDisplay} chapters written and packaged as a Word document.
+        </p>
         {downloadUrl && (
-          <div className="bg-white rounded-2xl shadow-md p-8 text-center space-y-4">
-            <div className="text-5xl">📖</div>
-            <h2 className="text-2xl font-bold text-amber-900">
-              Your novel is ready!
-            </h2>
-            <p className="text-amber-700">
-              {form.numChapters} chapters written and packaged as a Word
-              document.
-            </p>
-            <a
-              href={downloadUrl}
-              download={downloadName}
-              className="inline-block bg-amber-700 hover:bg-amber-800 text-white font-semibold py-3 px-8 rounded-xl text-lg transition-colors"
-            >
-              Download your novel
-            </a>
-            <div>
-              <button
-                onClick={() => {
-                  setDownloadUrl(null);
-                  setSteps([]);
-                  setTone("warm_cozy");
-                  setReadingLevel("standard");
-                  setGeolocation("");
-                  setBookContext("");
-                  setForm({
-                    detectiveName: "",
-                    setting: "",
-                    hobby: "",
-                    premise: "",
-                    numChapters: 10,
-                    wordsPerChapter: 2800,
-                    tone: "warm_cozy",
-                    readingLevel: "standard",
-                    geolocation: "",
-                    bookContext: "",
-                  });
-                }}
-                className="text-amber-700 underline text-sm mt-2"
-              >
-                Write another novel
-              </button>
-            </div>
-          </div>
+          <a
+            href={downloadUrl}
+            download={downloadName}
+            className="inline-block bg-amber-800 hover:bg-amber-700 text-white font-semibold py-3 px-8 rounded-xl transition"
+          >
+            Download your novel
+          </a>
         )}
+        <div className="mt-6">
+          <button
+            onClick={() => {
+              setDownloadUrl(null);
+              setSteps([]);
+              setProposal(null);
+              setVagueIdea("");
+              setErrorMsg(null);
+              setMode("idea");
+            }}
+            className="text-neutral-500 hover:text-neutral-300 underline text-sm transition"
+          >
+            Write another novel
+          </button>
+        </div>
       </div>
     </main>
   );
 }
 
-// ─── Small form field components ──────────────────────────────────────────────
+// ─── Proposal form field components ───────────────────────────────────────────
 
-function Field({
+function ProposalField({
   label,
-  hint,
   value,
   onChange,
+  type = "text",
 }: {
   label: string;
-  hint: string;
   value: string;
   onChange: (v: string) => void;
+  type?: string;
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-amber-900 mb-1">
-        {label}
-      </label>
+      <label className="block text-xs font-medium text-neutral-400 mb-1.5">{label}</label>
       <input
-        type="text"
-        placeholder={hint}
+        type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+        className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-700"
       />
     </div>
   );
 }
 
-function TextareaField({
+function ProposalTextarea({
   label,
-  hint,
   value,
   onChange,
+  rows,
 }: {
   label: string;
-  hint: string;
   value: string;
   onChange: (v: string) => void;
+  rows: number;
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-amber-900 mb-1">
-        {label}
-      </label>
+      <label className="block text-xs font-medium text-neutral-400 mb-1.5">{label}</label>
       <textarea
-        placeholder={hint}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        rows={3}
-        className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+        rows={rows}
+        className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-700 resize-none"
       />
     </div>
   );
 }
 
-function NumberField({
+function ProposalSelect({
   label,
   value,
-  min,
-  max,
-  step = 1,
   onChange,
+  options,
 }: {
   label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  onChange: (v: number) => void;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-amber-900 mb-1">
-        {label}
-      </label>
-      <input
-        type="number"
+      <label className="block text-xs font-medium text-neutral-400 mb-1.5">{label}</label>
+      <select
         value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-      />
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2.5 text-sm text-neutral-100 focus:outline-none focus:border-amber-700"
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

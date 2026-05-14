@@ -10,7 +10,9 @@ export async function callOpenAI(params: {
   userPrompt: string;
   responseFormat?: "json" | "text";
   maxTokens?: number;
+  temperature?: number;
 }): Promise<string> {
+  const defaultTemp = params.responseFormat === "json" ? 0.7 : 0.85;
   const response = await client.chat.completions.create({
     model: params.model,
     messages: [
@@ -22,7 +24,7 @@ export async function callOpenAI(params: {
         ? { type: "json_object" }
         : { type: "text" },
     max_tokens: params.maxTokens || 4000,
-    temperature: params.responseFormat === "json" ? 0.7 : 0.85,
+    temperature: params.temperature ?? defaultTemp,
   });
 
   return response.choices[0].message.content || "";
