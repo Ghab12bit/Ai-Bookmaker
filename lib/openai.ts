@@ -1,8 +1,13 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let client: OpenAI | null = null;
+
+function getClient(): OpenAI {
+  if (!client) {
+    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return client;
+}
 
 export async function callOpenAI(params: {
   model: "gpt-4o" | "gpt-4o-mini";
@@ -11,7 +16,7 @@ export async function callOpenAI(params: {
   responseFormat?: "json" | "text";
   maxTokens?: number;
 }): Promise<string> {
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: params.model,
     messages: [
       { role: "system", content: params.systemPrompt },
