@@ -1,107 +1,61 @@
-export type UserInput = {
-  detectiveName: string;
-  setting: string;
-  hobby: string;
-  premise: string;
-  numChapters: number;
-  wordsPerChapter: number;
-};
-
-export type Character = {
-  name: string;
-  role: "detective" | "victim" | "suspect" | "ally" | "minor";
-  age: number;
-  occupation: string;
-  datedFacts: string[];
-  voiceTraits: string[];
-  visualTags: string[];
-  wants: string;
-  fears: string;
-  secret: string;
-  alibi?: string;
-  motive?: string;
-  isGuilty?: boolean;
-};
-
-export type Clue = {
+export interface Profile {
   id: string;
-  description: string;
-  plantedInChapter: number;
-  payoffInChapter: number;
-  isRedHerring: boolean;
-  meaning: string;
-};
+  name: string;
+  role: "designer" | "am";
+  created_at: string;
+}
 
-export type Relationship = {
-  characters: [string, string];
-  seams: string[];
-};
-
-export type OpeningTechnique =
-  | "sensory_immersion"
-  | "character_action"
-  | "dialogue_cold_open"
-  | "interior_monologue"
-  | "atmospheric_wrongness"
-  | "singular_object"
-  | "physical_sensation"
-  | "environmental_contrast";
-
-export type EndingTechnique =
-  | "image"
-  | "question"
-  | "stated_intent"
-  | "dialogue_cliff"
-  | "realization"
-  | "action_mid_motion"
-  | "emotional_beat"
-  | "singular_object";
-
-export type ChapterOutline = {
-  chapterNumber: number;
+export interface Review {
+  id: string;
   title: string;
-  oneSentenceSummary: string;
-  primaryScene: string;
-  charactersPresent: string[];
-  cluesPlanted: string[];
-  cluesReferenced: string[];
-  emotionalBeat: string;
-  openingTechnique: OpeningTechnique;
-  endingTechnique: EndingTechnique;
-};
+  client_name: string;
+  stage: "internal" | "client";
+  status: "in_review" | "changes_requested" | "approved";
+  client_token: string;
+  client_link_active: boolean;
+  feedback_deadline: string | null;
+  created_by: string;
+  created_at: string;
+}
 
-export type BookBible = {
-  title: string;
-  subtitle?: string;
-  setting: {
-    townName: string;
-    region: string;
-    timeOfYear: string;
-    atmosphere: string;
-    keyLocations: { name: string; description: string }[];
-  };
-  characters: Character[];
-  relationships: Relationship[];
-  mystery: {
-    crime: string;
-    truth: string;
-    misleadingTruth: string;
-    clues: Clue[];
-  };
-  themes: string[];
-  vocabularyPalette: string[];
-  chapterOutlines: ChapterOutline[];
-};
+export interface Version {
+  id: string;
+  review_id: string;
+  version_number: number;
+  file_url: string;
+  file_type: "image" | "pdf";
+  created_at: string;
+}
 
-export type GeneratedChapter = {
-  chapterNumber: number;
-  title: string;
-  text: string;
-  wordCount: number;
-};
+export interface Pin {
+  id: string;
+  version_id: string;
+  x_pct: number;
+  y_pct: number;
+  author_type: "designer" | "am" | "client";
+  author_name: string;
+  resolved: boolean;
+  created_at: string;
+  comments?: Comment[];
+}
 
-export type ChapterSummary = {
-  chapterNumber: number;
-  summary: string;
-  vocabularyUsed: string[];
-};
+export interface Comment {
+  id: string;
+  pin_id: string;
+  author_type: "designer" | "am" | "client";
+  author_name: string;
+  body: string;
+  reference_url: string | null;
+  created_at: string;
+}
+
+export interface FeedbackRound {
+  id: string;
+  review_id: string;
+  submitted_by_type: "team" | "client";
+  submitted_at: string;
+}
+
+export interface ReviewWithVersion extends Review {
+  versions: Version[];
+}

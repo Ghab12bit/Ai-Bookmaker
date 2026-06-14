@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AdClear Review — Design Feedback Portal
 
-## Getting Started
+Internal tool for anchored, batched, staged design feedback. Replaces scattered WhatsApp threads with a single canvas where every comment lives on a coordinate of the design.
 
-First, run the development server:
+## Setup
+
+### 1. Supabase
+
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Run the SQL in `supabase-schema.sql` in the SQL Editor to create all tables, RLS policies, and storage buckets
+3. Copy your project URL and anon key
+
+### 2. Environment
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Team Accounts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create team accounts manually in Supabase Auth, then insert matching `profiles` rows:
 
-## Learn More
+```sql
+INSERT INTO profiles (id, name, role) VALUES
+  ('<auth-user-id>', 'Designer Name', 'designer'),
+  ('<auth-user-id>', 'AM Name', 'am');
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 4. Run
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 5. Deploy
 
-## Deploy on Vercel
+Connect the GitHub repo to Vercel, add the same env vars, and deploy.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Architecture
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Next.js** (App Router, TypeScript)
+- **Supabase** — Postgres, Auth, Realtime, Storage
+- **Tailwind CSS** + shadcn/ui-style components
+
+## Roles
+
+| Role | Auth | Capabilities |
+|------|------|-------------|
+| Designer | Email + password | Upload designs, resolve pins, set status |
+| Account Manager | Email + password | Comment, move stage, share client link |
+| Client | Magic link (no account) | Comment on client-stage designs, approve |
